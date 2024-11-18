@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brown Noise Generator</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #121212; /* Dark background */
+            color: #ffffff; /* White text */
+            background-image: radial-gradient(circle, #121212 20%, #000000 100%);
+        }
+        button {
+            background-color: #4caf50;
+            border: none;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+        button.paused {
+            background-color: #f44336;
+        }
+        button:hover {
+            transform: scale(1.1);
+        }
+        .fas {
+            transition: color 0.3s ease;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+</head>
+<body>
+
+<button id="playPauseButton"><i class="fas fa-play"></i></button>
+
+<script src="http://unpkg.com/tone"></script>
+<script>
+    // Initialize Tone.js context
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Variable to track noise playback state
+    let isPlaying = false;
+    let brownNoise = new Tone.Noise("brown").start();
+    brownNoise.volume.value = -10; // Adjust volume as needed
+    brownNoise.toDestination();
+    brownNoise.stop();
+
+    const playPauseButton = document.getElementById('playPauseButton');
+    const playIcon = playPauseButton.querySelector('.fas');
+
+    playPauseButton.addEventListener('click', function() {
+        if (isPlaying) {
+            brownNoise.stop();
+            playPauseButton.classList.remove('paused');
+            playIcon.className = 'fas fa-play';
+        } else {
+            brownNoise.start();
+            playPauseButton.classList.add('paused');
+            playIcon.className = 'fas fa-pause';
+        }
+        isPlaying = !isPlaying;
+    });
+</script>
+</body>
+</html>
