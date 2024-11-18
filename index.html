@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brown Noise Generator</title>
+    <title>Noise Generator</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -12,9 +12,10 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #121212; /* Dark background */
-            color: #ffffff; /* White text */
+            background-color: #121212;
+            color: #ffffff;
             background-image: radial-gradient(circle, #121212 20%, #000000 100%);
+            flex-direction: column;
         }
         button {
             background-color: #4caf50;
@@ -29,6 +30,7 @@
             justify-content: center;
             align-items: center;
             transition: background-color 0.3s ease, transform 0.3s ease;
+            margin-bottom: 60px;
         }
         button.paused {
             background-color: #f44336;
@@ -39,40 +41,129 @@
         .fas {
             transition: color 0.3s ease;
         }
+        .volume-control-container {
+            width: 250px;
+            position: relative;
+            height: 15px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .volume-control-container.visible {
+            opacity: 1;
+        }
+        .volume-bar {
+            width: 100%;
+            height: 15px;
+            background: #333333;
+            border-radius: 7.5px;
+            position: relative;
+            z-index: 1;
+        }
+        .volume-fill {
+            height: 100%;
+            width: 0;
+            background: #ffffff;
+            border-radius: 7.5px;
+            position: absolute;
+            z-index: 2;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .volume-control {
+            width: 100%;
+            height: 15px;
+            background: transparent;
+            border: none;
+            outline: none;
+            position: absolute;
+            z-index: 3;
+            top: 0;
+            left: 0;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .volume-control::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 0;
+            height: 0;
+        }
+        .volume-control::-moz-range-thumb {
+            width: 0;
+            height: 0;
+        }
+        .volume-control::-ms-thumb {
+            appearance: none;
+            width: 0;
+            height: 0;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 </head>
 <body>
+    <button id="playPauseButton"><i class="fas fa-play"></i></button>
+    <div class="volume-control-container" id="volumeControlContainer">
+        <div class="volume-bar">
+            <div class="volume-fill" id="volumeFill"></div>
+        </div>
+        <input id="volumeControl" type="range" min="-40" max="0" value="-20" class="volume-control">
+    </div>
+    <script src="https://unpkg.com/tone"></script>
+    <script>
+        // Initialize Tone.js context
+        const context = new (window.AudioContext || window.webkitAudioContext)();
 
-<button id="playPauseButton"><i class="fas fa-play"></i></button>
+        // Variable to track noise playback state
+        let isPlaying = false;
+        const brownNoise = new Tone.Noise("brown");
+        brownNoise.toDestination();
+        brownNoise.volume.value = -20; // Default volume
 
-<script src="http://unpkg.com/tone"></script>
-<script>
-    // Initialize Tone.js context
-    const context = new (window.AudioContext || window.webkitAudioContext)();
+        const playPauseButton = document.getElementById('playPauseButton');
+        const playIcon = playPauseButton.querySelector('.fas');
+        const volumeControl = document.getElementById('volumeControl');
+        const volumeFill = document.getElementById('volumeFill');
+        const volumeControlContainer = document.getElementById('volumeControlContainer');
 
-    // Variable to track noise playback state
-    let isPlaying = false;
-    let brownNoise = new Tone.Noise("brown").start();
-    brownNoise.volume.value = -10; // Adjust volume as needed
-    brownNoise.toDestination();
-    brownNoise.stop();
+        // Initialize the volume fill based on the default value
+        const maxVolume = 0;
+        const minVolume = -40;
+        const initialValue = parseInt(volumeControl.value);
+        const initialWidth = ((initialValue - minVolume) / (maxVolume - minVolume) * 100);
+        volumeFill.style.width = initialWidth + '%';
+        updateVolumeFillColor(initialWidth);
 
-    const playPauseButton = document.getElementById('playPauseButton');
-    const playIcon = playPauseButton.querySelector('.fas');
+        playPauseButton.addEventListener('click', function() {
+            if (isPlaying) {
+                brownNoise.stop();
+                playPauseButton.classList.remove('paused');
+                playIcon.className = 'fas fa-play';
+                volumeControlContainer.classList.remove('visible'); // Hide volume bar
+            } else {
+                brownNoise.start();
+                playPauseButton.classList.add('paused');
+                playIcon.className = 'fas fa-pause';
+                volumeControlContainer.classList.add('visible'); // Show volume bar
+            }
+            isPlaying = !isPlaying;
+        });
 
-    playPauseButton.addEventListener('click', function() {
-        if (isPlaying) {
-            brownNoise.stop();
-            playPauseButton.classList.remove('paused');
-            playIcon.className = 'fas fa-play';
-        } else {
-            brownNoise.start();
-            playPauseButton.classList.add('paused');
-            playIcon.className = 'fas fa-pause';
+        volumeControl.addEventListener('input', function() {
+            const volumeValue = parseInt(volumeControl.value);
+            brownNoise.volume.value = volumeValue;
+            const width = ((volumeValue - minVolume) / (maxVolume - minVolume) * 100);
+            volumeFill.style.width = width + '%';
+            updateVolumeFillColor(width);
+        });
+
+        function updateVolumeFillColor(width) {
+            if (width >= 75) {
+                // Linear interpolation between orange (255, 165, 0) and red (255, 0, 0)
+                const greenFactor = 165 - ((width - 75) / 25) * 165; // Gradually from 165 to 0
+                volumeFill.style.backgroundColor = `rgb(255, ${greenFactor}, 0)`;
+            } else {
+                volumeFill.style.backgroundColor = '#ffffff'; // White
+            }
         }
-        isPlaying = !isPlaying;
-    });
-</script>
+    </script>
 </body>
 </html>
