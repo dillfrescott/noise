@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noise Generator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap');
+
+        :root {
+            --accent-color: #007bff;
+            --accent-color-hover: #0056b3;
+            --track-color: #333;
+            --background-color: #111;
+            --text-color: #eee;
+            --text-color-secondary: #aaa;
+            --border-color: #444;
+            --lcd-bg-color: #222;
+            --lcd-text-color: var(--accent-color);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        #playPauseButton {
+            background-color: transparent;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            font-size: 36px;
+            color: var(--text-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            margin-bottom: 50px;
+        }
+
+        #playPauseButton.paused {
+            border-color: var(--accent-color);
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        #playPauseButton:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        #playPauseButton.paused:hover {
+            background-color: var(--accent-color-hover);
+            border-color: var(--accent-color-hover);
+            color: white;
+        }
+
+        .controls-container {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            pointer-events: none;
+            width: 300px;
+        }
+
+        .controls-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .control-group {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-color-secondary);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .lcd-display {
+            font-family: 'Orbitron', sans-serif;
+            background-color: var(--lcd-bg-color);
+            color: var(--lcd-text-color);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 20px;
+            min-width: 30px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--track-color);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s ease;
+        }
+        
+        input[type="range"]:hover::-webkit-slider-thumb {
+            background: var(--accent-color-hover);
+        }
+        input[type="range"]:hover::-moz-range-thumb {
+            background: var(--accent-color-hover);
+        }
+
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+</head>
+<body>
+    <button id="playPauseButton"><i class="fas fa-play"></i></button>
+    
+    <div class="controls-container" id="controlsContainer">
+        <div class="control-group">
+            <label for="volumeControl">Volume</label>
+            <div class="slider-wrapper">
+                <input id="volumeControl" type="range" min="-40" max="0" value="-24" step="8">
+                <span id="volumeValue" class="lcd-display">3</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label for="toneControl">Tone</label>
+            <div class="slider-wrapper">
+                <input id="toneControl" type="range" min="300" max="5000" value="2180" step="940">
+                <span id="toneValue" class="lcd-display">3</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const playPauseButton = document.getElementById('playPauseButton');
+        const playIcon = playPauseButton.querySelector('.fas');
+        const controlsContainer = document.getElementById('controlsContainer');
+        
+        const volumeControl = document.getElementById('volumeControl');
+        const volumeValue = document.getElementById('volumeValue');
+        
+        const toneControl = document.getElementById('toneControl');
+        const toneValue = document.getElementById('toneValue');
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const filterNode = audioContext.createBiquadFilter();
+        filterNode.type = 'lowpass';
+        filterNode.frequency.value = parseFloat(toneControl.value);
+
+        const gainNode = audioContext.createGain();
+        filterNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0; // Start muted
+
+        let isPlaying = false;
+        let noiseNode = null;
+
+        function dbToLinear(db) {
+            return Math.pow(10, db / 20);
+        }
+
+        function updateSliderFill(slider) {
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            const val = parseFloat(slider.value);
+            const percentage = ((val - min) / (max - min)) * 100;
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-color');
+            const trackColor = getComputedStyle(document.documentElement).getPropertyValue('--track-color');
+            slider.style.background = `linear-gradient(to right, ${accentColor} ${percentage}%, ${trackColor} ${percentage}%)`;
+        }
+
+        function updateLcdDisplay(slider, display) {
+            const min = parseFloat(slider.min);
+            const step = parseFloat(slider.step);
+            const value = parseFloat(slider.value);
+            const notch = Math.round((value - min) / step) + 1;
+            display.textContent = notch;
+        }
+
+        async function initializeNoise() {
+            if (noiseNode) return;
+            try {
+                const processorCode = `class NoiseProcessor extends AudioWorkletProcessor {
+  process(inputs, outputs, parameters) {
+    const output = outputs[0];
+    output.forEach(channel => {
+      for (let i = 0; i < channel.length; i++) {
+        channel[i] = Math.random() * 2 - 1;
+      }
+    });
+    return true;
+  }
+}
+registerProcessor('noise-processor', NoiseProcessor);`;
+                const blob = new Blob([processorCode], { type: 'application/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+                await audioContext.audioWorklet.addModule(blobUrl);
+                noiseNode = new AudioWorkletNode(audioContext, 'noise-processor');
+                noiseNode.connect(filterNode);
+            } catch (e) {
+                console.error('Error loading audio worklet.', e);
+            }
+        }
+
+        playPauseButton.addEventListener('click', async function() {
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                await initializeNoise();
+                const targetVolume = dbToLinear(parseFloat(volumeControl.value));
+                gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(targetVolume, audioContext.currentTime + 0.5);
+                
+                playPauseButton.classList.add('paused');
+                playIcon.className = 'fas fa-pause';
+                controlsContainer.classList.add('visible');
+            } else {
+                gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+                
+                playPauseButton.classList.remove('paused');
+                playIcon.className = 'fas fa-play';
+                controlsContainer.classList.remove('visible');
+            }
+        });
+
+        volumeControl.addEventListener('input', function() {
+            const dbValue = parseFloat(this.value);
+            if (isPlaying) {
+                gainNode.gain.setTargetAtTime(dbToLinear(dbValue), audioContext.currentTime, 0.01);
+            }
+            updateSliderFill(this);
+            updateLcdDisplay(this, volumeValue);
+        });
+
+        toneControl.addEventListener('input', function() {
+            filterNode.frequency.setTargetAtTime(parseFloat(this.value), audioContext.currentTime, 0.01);
+            updateSliderFill(this);
+            updateLcdDisplay(this, toneValue);
+        });
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSliderFill(volumeControl);
+            updateLcdDisplay(volumeControl, volumeValue);
+            
+            updateSliderFill(toneControl);
+            updateLcdDisplay(toneControl, toneValue);
+        });
+    </script>
+</body>
+</html>
