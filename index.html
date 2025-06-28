@@ -177,6 +177,11 @@
         </div>
     </div>
 
+    <div id="statusContainer" style="position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 14px; color: #aaa; z-index: 1000;">
+        <span id="statusDot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: orange;"></span>
+        <span id="statusMessage">Caching...</span>
+    </div>
+
     <script>
         const playPauseButton = document.getElementById('playPauseButton');
         const playIcon = playPauseButton.querySelector('.fas');
@@ -187,6 +192,10 @@
         
         const toneControl = document.getElementById('toneControl');
         const toneValue = document.getElementById('toneValue');
+
+        const statusContainer = document.getElementById('statusContainer');
+        const statusDot = document.getElementById('statusDot');
+        const statusMessage = document.getElementById('statusMessage');
 
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const filterNode = audioContext.createBiquadFilter();
@@ -200,6 +209,7 @@
 
         let isPlaying = false;
         let noiseNode = null;
+        let wakeLock = null; // For wake lock
 
         function dbToLinear(db) {
             return Math.pow(10, db / 20);
@@ -248,6 +258,27 @@ registerProcessor('noise-processor', NoiseProcessor);`;
             }
         }
 
+        // Wake lock functions
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock was released');
+                    });
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        }
+
         playPauseButton.addEventListener('click', async function() {
             if (audioContext.state === 'suspended') {
                 await audioContext.resume();
@@ -264,6 +295,9 @@ registerProcessor('noise-processor', NoiseProcessor);`;
                 playPauseButton.classList.add('paused');
                 playIcon.className = 'fas fa-pause';
                 controlsContainer.classList.add('visible');
+                
+                // Request wake lock
+                await requestWakeLock();
             } else {
                 gainNode.gain.cancelScheduledValues(audioContext.currentTime);
                 gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
@@ -271,6 +305,9 @@ registerProcessor('noise-processor', NoiseProcessor);`;
                 playPauseButton.classList.remove('paused');
                 playIcon.className = 'fas fa-play';
                 controlsContainer.classList.remove('visible');
+                
+                // Release wake lock
+                releaseWakeLock();
             }
         });
 
@@ -289,6 +326,41 @@ registerProcessor('noise-processor', NoiseProcessor);`;
             updateLcdDisplay(this, toneValue);
         });
 
+        // Update status dot and message
+        function updateStatusDot(swState) {
+            if (swState === 'installing') {
+                statusDot.style.backgroundColor = 'orange';
+                statusMessage.textContent = 'Caching for offline use...';
+            } else if (swState === 'installed' || swState === 'activated') {
+                statusDot.style.backgroundColor = '#007bff'; // blue
+                statusMessage.textContent = 'Ready for offline use';
+            } else {
+                statusDot.style.backgroundColor = 'grey';
+                statusMessage.textContent = 'Uncached';
+            }
+        }
+
+        // Service worker registration and status
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(registration => {
+                    let serviceWorker = registration.installing || registration.waiting || registration.active;
+                    if (serviceWorker) {
+                        updateStatusDot(serviceWorker.state);
+                    }
+
+                    registration.addEventListener('updatefound', () => {
+                        serviceWorker = registration.installing;
+                        serviceWorker.addEventListener('statechange', () => {
+                            updateStatusDot(serviceWorker.state);
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Service worker registration failed:', error);
+                });
+        }
+
         // Initial setup
         document.addEventListener('DOMContentLoaded', () => {
             updateSliderFill(volumeControl);
@@ -296,6 +368,20 @@ registerProcessor('noise-processor', NoiseProcessor);`;
             
             updateSliderFill(toneControl);
             updateLcdDisplay(toneControl, toneValue);
+            
+            // Initialize the status dot
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(registration => {
+                    const serviceWorker = registration.active;
+                    if (serviceWorker) {
+                        updateStatusDot(serviceWorker.state);
+                    } else {
+                        updateStatusDot('');
+                    }
+                });
+            } else {
+                statusContainer.style.display = 'none';
+            }
         });
     </script>
 </body>
