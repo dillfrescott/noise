@@ -169,13 +169,6 @@
             </div>
         </div>
 
-        <div class="control-group">
-            <label for="toneControl">Tone</label>
-            <div class="slider-wrapper">
-                <input id="toneControl" type="range" min="300" max="5000" value="2180" step="940">
-                <span id="toneValue" class="lcd-display">3</span>
-            </div>
-        </div>
     </div>
 
     <div id="statusContainer" style="position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 14px; color: #aaa; z-index: 1000;">
@@ -191,8 +184,6 @@
         const volumeControl = document.getElementById('volumeControl');
         const volumeValue = document.getElementById('volumeValue');
         
-        const toneControl = document.getElementById('toneControl');
-        const toneValue = document.getElementById('toneValue');
 
         const statusContainer = document.getElementById('statusContainer');
         const statusDot = document.getElementById('statusDot');
@@ -201,7 +192,7 @@
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const filterNode = audioContext.createBiquadFilter();
         filterNode.type = 'lowpass';
-        filterNode.frequency.value = parseFloat(toneControl.value);
+        filterNode.frequency.value = 1240; // Hardcoded to notch 2 (1240 Hz)
 
         const gainNode = audioContext.createGain();
         filterNode.connect(gainNode);
@@ -321,11 +312,6 @@ registerProcessor('noise-processor', NoiseProcessor);`;
             updateLcdDisplay(this, volumeValue);
         });
 
-        toneControl.addEventListener('input', function() {
-            filterNode.frequency.setTargetAtTime(parseFloat(this.value), audioContext.currentTime, 0.01);
-            updateSliderFill(this);
-            updateLcdDisplay(this, toneValue);
-        });
 
         // Update status dot and message
         function updateStatusDot(swState) {
@@ -367,8 +353,6 @@ registerProcessor('noise-processor', NoiseProcessor);`;
             updateSliderFill(volumeControl);
             updateLcdDisplay(volumeControl, volumeValue);
             
-            updateSliderFill(toneControl);
-            updateLcdDisplay(toneControl, toneValue);
             
             // Initialize the status dot
             if ('serviceWorker' in navigator) {
