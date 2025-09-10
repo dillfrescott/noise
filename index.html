@@ -226,21 +226,7 @@
         async function initializeNoise() {
             if (noiseNode) return;
             try {
-                const processorCode = `class NoiseProcessor extends AudioWorkletProcessor {
-  process(inputs, outputs, parameters) {
-    const output = outputs[0];
-    output.forEach(channel => {
-      for (let i = 0; i < channel.length; i++) {
-        channel[i] = Math.random() * 2 - 1;
-      }
-    });
-    return true;
-  }
-}
-registerProcessor('noise-processor', NoiseProcessor);`;
-                const blob = new Blob([processorCode], { type: 'application/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-                await audioContext.audioWorklet.addModule(blobUrl);
+                await audioContext.audioWorklet.addModule('noise-processor.js');
                 noiseNode = new AudioWorkletNode(audioContext, 'noise-processor');
                 noiseNode.connect(filterNode);
             } catch (e) {
