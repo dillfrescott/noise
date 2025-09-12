@@ -191,7 +191,7 @@
         
         const highPassFilter = audioContext.createBiquadFilter();
         highPassFilter.type = 'highpass';
-        highPassFilter.frequency.value = 80; // Remove subwoofer frequencies
+        highPassFilter.frequency.value = 100; // Remove subwoofer frequencies
 
         const filterNode = audioContext.createBiquadFilter();
         filterNode.type = 'lowpass';
