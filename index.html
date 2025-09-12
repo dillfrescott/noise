@@ -188,11 +188,17 @@
         const statusMessage = document.getElementById('statusMessage');
 
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const highPassFilter = audioContext.createBiquadFilter();
+        highPassFilter.type = 'highpass';
+        highPassFilter.frequency.value = 80; // Remove subwoofer frequencies
+
         const filterNode = audioContext.createBiquadFilter();
         filterNode.type = 'lowpass';
         filterNode.frequency.value = 1240; // Hardcoded to notch 2 (1240 Hz)
 
         const gainNode = audioContext.createGain();
+        highPassFilter.connect(filterNode);
         filterNode.connect(gainNode);
         gainNode.connect(audioContext.destination);
         gainNode.gain.value = 0; // Start muted
