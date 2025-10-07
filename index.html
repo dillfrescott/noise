@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noise Generator</title>
+    <style>
+        :root {
+            --accent-color: #007bff;
+            --accent-color-hover: #0056b3;
+            --track-color: #333;
+            --background-color: #111;
+            --text-color: #eee;
+            --text-color-secondary: #aaa;
+            --border-color: #444;
+            --lcd-bg-color: #222;
+            --lcd-text-color: var(--accent-color);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        #playPauseButton {
+            background-color: transparent;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            font-size: 36px;
+            color: var(--text-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            margin-bottom: 50px;
+        }
+
+        #playPauseButton.paused {
+            border-color: var(--accent-color);
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        #playPauseButton:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        #playPauseButton.paused:hover {
+            background-color: var(--accent-color-hover);
+            border-color: var(--accent-color-hover);
+            color: white;
+        }
+
+        .controls-container {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            pointer-events: none;
+            width: 300px;
+        }
+
+        .controls-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .control-group {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-color-secondary);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .lcd-display {
+            font-family: 'Orbitron', sans-serif;
+            background-color: var(--lcd-bg-color);
+            color: var(--lcd-text-color);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 20px;
+            min-width: 30px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--track-color);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s ease;
+        }
+        
+        input[type="range"]:hover::-webkit-slider-thumb {
+            background: var(--accent-color-hover);
+        }
+        input[type="range"]:hover::-moz-range-thumb {
+            background: var(--accent-color-hover);
+        }
+
+    </style>
+    <link rel="stylesheet" href="./all.min.css" />
+</head>
+<body>
+    <button id="playPauseButton"><i class="fas fa-play"></i></button>
+    
+    <div class="controls-container" id="controlsContainer">
+        <div class="control-group">
+            <label for="volumeControl">Volume</label>
+            <div class="slider-wrapper">
+                <input id="volumeControl" type="range" min="-40" max="0" value="-16" step="8">
+                <span id="volumeValue" class="lcd-display">4</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="statusContainer" style="position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 14px; color: #aaa; z-index: 1000;">
+        <span id="statusDot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: orange;"></span>
+        <span id="statusMessage">Caching...</span>
+    </div>
+
+    <script>
+        const playPauseButton = document.getElementById('playPauseButton');
+        const playIcon = playPauseButton.querySelector('.fas');
+        const controlsContainer = document.getElementById('controlsContainer');
+        
+        const volumeControl = document.getElementById('volumeControl');
+        const volumeValue = document.getElementById('volumeValue');
+        
+
+        const statusContainer = document.getElementById('statusContainer');
+        const statusDot = document.getElementById('statusDot');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const highPassFilter = audioContext.createBiquadFilter();
+        highPassFilter.type = 'highpass';
+        highPassFilter.frequency.value = 100; // Remove subwoofer frequencies
+
+        const filterNode = audioContext.createBiquadFilter();
+        filterNode.type = 'lowpass';
+        filterNode.frequency.value = 1240; // Hardcoded to notch 2 (1240 Hz)
+
+        const gainNode = audioContext.createGain();
+        highPassFilter.connect(filterNode);
+        filterNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0; // Start muted
+
+        let isPlaying = false;
+        let noiseNode = null;
+        let wakeLock = null; // For wake lock
+
+        function dbToLinear(db) {
+            return Math.pow(10, db / 20);
+        }
+
+        function updateSliderFill(slider) {
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            const val = parseFloat(slider.value);
+            const percentage = ((val - min) / (max - min)) * 100;
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-color');
+            const trackColor = getComputedStyle(document.documentElement).getPropertyValue('--track-color');
+            slider.style.background = `linear-gradient(to right, ${accentColor} ${percentage}%, ${trackColor} ${percentage}%)`;
+        }
+
+        function updateLcdDisplay(slider, display) {
+            const min = parseFloat(slider.min);
+            const step = parseFloat(slider.step);
+            const value = parseFloat(slider.value);
+            const notch = Math.round((value - min) / step) + 1;
+            display.textContent = notch;
+        }
+
+        async function initializeNoise() {
+            if (noiseNode) return;
+            try {
+                await audioContext.audioWorklet.addModule('noise-processor.js');
+                noiseNode = new AudioWorkletNode(audioContext, 'noise-processor');
+                noiseNode.connect(filterNode);
+            } catch (e) {
+                console.error('Error loading audio worklet.', e);
+            }
+        }
+
+        // Wake lock functions
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock was released');
+                    });
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        }
+
+        playPauseButton.addEventListener('click', async function() {
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                await initializeNoise();
+                const targetVolume = dbToLinear(parseFloat(volumeControl.value));
+                gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(targetVolume, audioContext.currentTime + 0.5);
+                
+                playPauseButton.classList.add('paused');
+                playIcon.className = 'fas fa-pause';
+                controlsContainer.classList.add('visible');
+                
+                // Request wake lock
+                await requestWakeLock();
+            } else {
+                gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+                
+                playPauseButton.classList.remove('paused');
+                playIcon.className = 'fas fa-play';
+                controlsContainer.classList.remove('visible');
+                
+                // Release wake lock
+                releaseWakeLock();
+            }
+        });
+
+        volumeControl.addEventListener('input', function() {
+            const dbValue = parseFloat(this.value);
+            if (isPlaying) {
+                gainNode.gain.setTargetAtTime(dbToLinear(dbValue), audioContext.currentTime, 0.01);
+            }
+            updateSliderFill(this);
+            updateLcdDisplay(this, volumeValue);
+        });
+
+        // Update status dot and message
+        function updateStatusDot(swState) {
+            if (swState === 'installing') {
+                statusDot.style.backgroundColor = 'orange';
+                statusMessage.textContent = 'Caching for offline use...';
+            } else if (swState === 'installed' || swState === 'activated') {
+                statusDot.style.backgroundColor = '#007bff'; // blue
+                statusMessage.textContent = 'Ready for offline use';
+            } else {
+                statusDot.style.backgroundColor = 'grey';
+                statusMessage.textContent = 'Uncached';
+            }
+        }
+
+        // Service worker registration and status
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(registration => {
+                    let serviceWorker = registration.installing || registration.waiting || registration.active;
+                    if (serviceWorker) {
+                        updateStatusDot(serviceWorker.state);
+                    }
+
+                    registration.addEventListener('updatefound', () => {
+                        serviceWorker = registration.installing;
+                        serviceWorker.addEventListener('statechange', () => {
+                            updateStatusDot(serviceWorker.state);
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Service worker registration failed:', error);
+                });
+        }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSliderFill(volumeControl);
+            updateLcdDisplay(volumeControl, volumeValue);
+            
+            // Initialize the status dot
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(registration => {
+                    const serviceWorker = registration.active;
+                    if (serviceWorker) {
+                        updateStatusDot(serviceWorker.state);
+                    } else {
+                        updateStatusDot('');
+                    }
+                });
+            } else {
+                statusContainer.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
